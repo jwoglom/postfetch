@@ -9,8 +9,14 @@ def get_json(date):
 def get_pdf_url(info):
     return "https://www.washingtonpost.com/wp-stat/tablet/v1.1/{date}/{pdf}".format(date=info[0], pdf=info[2])
 
+def get_thumb_url(info):
+    return "https://www.washingtonpost.com/wp-stat/tablet/v1.1/{date}/{thumb}".format(date=info[0], thumb=info[3])
+
 def get_pdf_save(info):
     return "out/{date}/{pdf}".format(date=info[0], pdf=info[2])
+
+def get_thumb_save(info):
+    return "out/{date}/thumb/{thumb}".format(date=info[0], thumb=info[3])
 
 def parse_json(jsond):
     data = []
@@ -21,7 +27,7 @@ def parse_json(jsond):
         sname = section["name"]
         pages = section["pages"]["page"]
         for page in pages:
-            data.append((date, page["page_name"], page["hires_pdf"]))
+            data.append((date, page["page_name"], page["hires_pdf"], page["thumb_300"]))
 
     return data
 
@@ -35,19 +41,30 @@ def init_folder(date):
     base = 'out/{}/'.format(int(date))
     if not os.path.exists(base):
         os.mkdir(base)
+    
+    if not os.path.exists(base+'thumb'):
+        os.mkdir(base+'thumb')
 
 def download_pdf(info):
     url = get_pdf_url(info)
     save = get_pdf_save(info)
-    open(save, 'wb').write(requests.get(url).content)
-    print("== saved", save)
+    if not os.path.exists(save):
+        open(save, 'wb').write(requests.get(url).content)
+        print("== saved", save)
 
+def download_thumb(info):
+    url = get_thumb_url(info)
+    save = get_thumb_save(info)
+    if not os.path.exists(save):
+        open(save, 'wb').write(requests.get(url).content)
+        print("== thumb", save)
+    
 def download_data(data):
     for info in data:
         print("== download", info)
         download_pdf(info)
-
-
+        download_thumb(info)
+        
 def run(date):
     print("=== Processing", date)
     jsond = get_json(date)
