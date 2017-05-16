@@ -1,5 +1,49 @@
-import datetime, json, os, requests
+import datetime, json, os, requests, argparse
 from subprocess import Popen
+
+DEFAULT_START_DATE = "2015-05-20" # first date where files exist
+
+parser = argparse.ArgumentParser(description="Download Washington Post archives.")
+parser.add_argument('--all', dest='all', action='store_const', const=True, default=False,
+    help='download all available pages')
+parser.add_argument('--date', dest='date', type=str, metavar='YYYYMMDD',
+    help='download for this specific date (format YYYYMMDD)')
+parser.add_argument('--date-range', dest='date_range', action='store_const', const=True, default=False,
+    help='download for a specific range of dates.')
+
+parser.add_argument('--start-date', dest='start_date', type=str, default=DEFAULT_START_DATE, metavar='YYYYMMDD',
+    help='the initial date to download from (format YYYYMMDD)')
+parser.add_argument('--start-auto', dest='start_auto', action='store_const', const=True,
+    help='auto-determine start date if applicable (using last date stored previously)')
+parser.add_argument('--end-date', dest='end_date', type=str, default=None, metavar='YYYYMMDD',
+    help='the date to download until (format YYYYMMDD)')
+parser.add_argument('--thumbnails', dest='thumbnails', action='store_const', const=True, default=False,
+    help='download thumbnails')
+parser.add_argument('--no-thumbnails', dest='thumbnails', action='store_const', const=False,
+    help='do not download thumbnails (default)')
+parser.add_argument('--pdfs', dest='pdfs', action='store_const', const=True, default=True,
+    help='download pdfs (default)')
+parser.add_argument('--no-pdfs', dest='pdfs', action='store_const', const=False,
+    help='do not download pdfs')
+
+parser.add_argument('--only-front', dest='only_front', action='store_const', const=True,
+    help='download only front page')
+
+
+args = vars(parser.parse_args())
+
+def main():
+    if args["date"]:
+        run_date(args["date"], dw_pdf=args["pdfs"], dw_thumb=args["thumbnails"], only_front=args["only_front"])
+    elif args["date_range"] or args["all"]:
+        dates = get_dates(args["start_date"], args["end_date"], args["start_auto"])
+        for date in dates:
+            run_date(date, dw_pdf=args["pdfs"], dw_thumb=args["thumbnails"], only_front=args["only_front"])
+    else:
+        exit("Specify either --date, --date-range, or --all")
+
+def parse_date(datestr):
+    return datetime.datetime.strptime(datestr, "%Y%m%d").date()
 
 def get_json(date):
     r = requests.get("https://www.washingtonpost.com/wp-stat/tablet/v1.1/{date}/tablet_{date}.json".format(date=date))
@@ -18,7 +62,7 @@ def get_pdf_save(info):
 def get_thumb_save(info):
     return "out/{date}/thumb/{thumb}".format(date=info[0], thumb=info[3])
 
-def parse_json(jsond):
+def parse_json(jsond, only_front):
     data = []
 
     date = jsond["sections"]["pubdate"]
@@ -27,14 +71,15 @@ def parse_json(jsond):
         sname = section["name"]
         pages = section["pages"]["page"]
         for page in pages:
-            data.append((date, page["page_name"], page["hires_pdf"], page["thumb_300"]))
+            if (only_front and page["page_name"] == 'A01') or not only_front:
+                data.append((date, page["page_name"], page["hires_pdf"], page["thumb_300"]))
 
     return data
 
 def save_json(date, jsond):
     open('out/{}/tablet.json'.format(date), 'w').write(json.dumps(jsond))
 
-def init_folder(date):
+def init_folder(date, dw_thumb=False):
     if not os.path.exists('out'):
         os.mkdir('out')
 
@@ -58,31 +103,36 @@ def download_thumb(info):
     if not os.path.exists(save):
         open(save, 'wb').write(requests.get(url).content)
         print("== thumb", save)
-    
-def download_data(data):
-    for info in data:
-        print("== download", info)
-        download_pdf(info)
-        download_thumb(info)
+
         
-def run(date):
+def run_date(date, dw_pdf, dw_thumb, only_front):
     print("=== Processing", date)
     jsond = get_json(date)
     if not jsond:
         print("=== SKIP", date)
         return
-    init_folder(date)
+    init_folder(date, dw_thumb)
     save_json(date, jsond)
-    data = parse_json(jsond)
+    data = parse_json(jsond, only_front)
     print("=== Downloading", date)
-    download_data(data)
+    
+    for info in data:
+        if dw_pdf:
+            download_pdf(info)
+        if dw_thumb:
+            download_thumb(info)
 
-def get_dates():
+def get_dates(start_date, end_date, start_auto=False):
     if not os.path.exists('out'):
         os.mkdir('out')
-    cur_dates = set(filter((lambda x: x.isnumeric() and len(x) == 8), os.listdir('out')))
-    start_date = datetime.date(2015, 5, 20) # first date where files exist
-    end_date = datetime.datetime.now().date()
+    if start_auto:
+        cur_dates = set(filter((lambda x: x.isnumeric() and len(x) == 8), os.listdir('out')))
+    else:
+        cur_dates = set()
+    if not start_date:
+        start_date = DEFAULT_START_DATE
+    if not end_date:
+        end_date = datetime.datetime.now().date()
     dates = set()
     d = start_date
     while d <= end_date:
@@ -90,21 +140,7 @@ def get_dates():
         if f not in cur_dates:
             dates.add(f)
         d += datetime.timedelta(days=1)
-
     return sorted(dates)
-
-def main():
-    dates = get_dates()
-    print("Dates to download...", len(dates))
-    print(dates)
-    i = 0
-    for d in dates:
-        run(int(d))
-        i += 1
-        if i%10 == 0:
-            print("=", len(dates)-i, "downloads remaining...")
-
-    print("Completed", len(dates), "downloads.")
 
 if __name__ == '__main__':
     main()
