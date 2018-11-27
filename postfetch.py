@@ -15,6 +15,8 @@ parser.add_argument('--start-date', dest='start_date', type=str, default=DEFAULT
     help='the initial date to download from (format YYYYMMDD)')
 parser.add_argument('--start-auto', dest='start_auto', action='store_const', const=True,
     help='auto-determine start date if applicable (using last date stored previously)')
+parser.add_argument('--recheck-recent', dest='recheck_recent', action='store_const', const=True,
+    help='recheck for new editions from yesterday')
 parser.add_argument('--end-date', dest='end_date', type=str, default=None, metavar='YYYYMMDD',
     help='the date to download until (format YYYYMMDD)')
 parser.add_argument('--thumbnails', dest='thumbnails', action='store_const', const=True, default=False,
@@ -36,7 +38,7 @@ def main():
     if args["date"]:
         run_date(args["date"], dw_pdf=args["pdfs"], dw_thumb=args["thumbnails"], only_front=args["only_front"])
     elif args["date_range"] or args["all"]:
-        dates = get_dates(args["start_date"], args["end_date"], args["start_auto"])
+        dates = get_dates(args["start_date"], args["end_date"], start_auto=args["start_auto"], recheck_recent=args["recheck_recent"])
         for date in dates:
             run_date(date, dw_pdf=args["pdfs"], dw_thumb=args["thumbnails"], only_front=args["only_front"])
     else:
@@ -122,7 +124,7 @@ def run_date(date, dw_pdf, dw_thumb, only_front):
         if dw_thumb:
             download_thumb(info)
 
-def get_dates(start_date, end_date, start_auto=False):
+def get_dates(start_date, end_date, start_auto=False, recheck_recent=False):
     if not os.path.exists('out'):
         os.mkdir('out')
     if start_auto:
@@ -138,6 +140,8 @@ def get_dates(start_date, end_date, start_auto=False):
     while d <= end_date:
         f = '{}{}{}'.format(d.year, '%02d'%d.month, '%02d'%d.day)
         if f not in cur_dates:
+            dates.add(f)
+        if recheck_recent and d >= end_date+datetime.timedelta(days=-1):
             dates.add(f)
         d += datetime.timedelta(days=1)
     return sorted(dates)
