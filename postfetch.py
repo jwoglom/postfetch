@@ -1,7 +1,7 @@
 import datetime, json, os, requests, argparse
 from subprocess import Popen
 
-DEFAULT_START_DATE = "2015-05-20" # first date where files exist
+DEFAULT_START_DATE = "20150520" # first date where files exist
 
 parser = argparse.ArgumentParser(description="Download Washington Post archives.")
 parser.add_argument('--all', dest='all', action='store_const', const=True, default=False,
@@ -133,8 +133,12 @@ def get_dates(start_date, end_date, start_auto=False, recheck_recent=False):
         cur_dates = set()
     if not start_date:
         start_date = DEFAULT_START_DATE
+    else:
+        start_date = parse_date(start_date)
     if not end_date:
         end_date = datetime.datetime.now().date()
+    else:
+        end_date = parse_date(end_date)
     dates = set()
     d = start_date
     while d <= end_date:
