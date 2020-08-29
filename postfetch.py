@@ -39,6 +39,7 @@ def main():
         run_date(args["date"], dw_pdf=args["pdfs"], dw_thumb=args["thumbnails"], only_front=args["only_front"])
     elif args["date_range"] or args["all"]:
         dates = get_dates(args["start_date"], args["end_date"], start_auto=args["start_auto"], recheck_recent=args["recheck_recent"])
+        print('Got dates:', dates)
         for date in dates:
             run_date(date, dw_pdf=args["pdfs"], dw_thumb=args["thumbnails"], only_front=args["only_front"])
     else:
@@ -96,15 +97,19 @@ def download_pdf(info):
     url = get_pdf_url(info)
     save = get_pdf_save(info)
     if not os.path.exists(save):
-        open(save, 'wb').write(requests.get(url).content)
-        print("== saved", save)
+        content = requests.get(url).content
+        print('=== downloaded', url)
+        open(save, 'wb').write(content)
+        print('=== saved', save)
 
 def download_thumb(info):
     url = get_thumb_url(info)
     save = get_thumb_save(info)
     if not os.path.exists(save):
-        open(save, 'wb').write(requests.get(url).content)
-        print("== thumb", save)
+        content = requests.get(url).content
+        print('=== downloaded thumb', url)
+        open(save, 'wb').write(content)
+        print('=== saved thumb', save)
 
         
 def run_date(date, dw_pdf, dw_thumb, only_front):
@@ -113,6 +118,7 @@ def run_date(date, dw_pdf, dw_thumb, only_front):
     if not jsond:
         print("=== SKIP", date)
         return
+    print('=== got JSON, init folder')
     init_folder(date, dw_thumb)
     save_json(date, jsond)
     data = parse_json(jsond, only_front)
